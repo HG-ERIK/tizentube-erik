@@ -132,6 +132,7 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
   var VARIANT_WORDS = ('live remix cover acoustic instrumental sped slowed reverb nightcore karaoke edit session sessions ' +
     'concert demo mashup unplugged orchestral piano version rework bootleg flip vip extended mix pt part 8d boosted tribute reprise').split(' ');
   var cache = {}, songs = {}, last = null;
+  function dbg(m) { try { window.h5vcc.tizentube.ShowAlertDialog('Force Music debug', String(m)); } catch (e) {} }   // TEMP
 
   function on() {
     try { return (JSON.parse(localStorage.getItem('ytaf-configuration') || '{}') || {}).enableForceMusic === true; } catch (e) { return false; }
@@ -252,7 +253,7 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
   }
   function resolve(id) {
     if (cache[id]) return Promise.resolve(cache[id]);
-    return find(id).then(function (r) { cache[id] = r; return r; }, function (e) { console.warn('Force Music Only:', id, e && e.message); return id; });
+    return find(id).then(function (r) { cache[id] = r; return r; }, function (e) { dbg('error ' + (e && e.message)); return id; });
   }
 
   /* ---------- the watch page ---------- */
@@ -261,10 +262,10 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
     var id = current();
     if (!id || id === last) return;
     last = id;
-    console.info('Force Music Only: watching', id, 'on:', on(), 'hash:', location.hash.slice(0, 80));
+    dbg('watching ' + id + ' on=' + on());
     if (songs[id] || !on()) return;              // a song we swapped in, or the switch is off
     resolve(id).then(function (song) {
-      console.info('Force Music Only:', id, '->', song);
+      dbg(id + ' -> ' + song);
       if (song === id || current() !== id) return;
       songs[song] = id;
       last = song;
