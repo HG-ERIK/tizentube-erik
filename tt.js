@@ -161,7 +161,7 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
   function onKey(e) {
     if (e.keyCode !== 13 || (!card && Date.now() > swallowUntil)) return;
     e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-    if (card && e.type === 'keydown') { closeCard(); swallowUntil = Date.now() + 600; next(); }
+    if (card && e.type === 'keydown') { swallowUntil = Date.now() + 600; skipNow(); }
   }
   ['keydown', 'keypress', 'keyup'].forEach(function (t) { window.addEventListener(t, onKey, true); });
   function showCard(id) {
@@ -182,10 +182,17 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
     timer = setInterval(function () {
       if (location.hash.indexOf('v=' + id) < 0) { closeCard(); return; }   // gone elsewhere meanwhile
       if (--left > 0) { btn.textContent = m[2].replace('%d', left); return; }
-      btn.textContent = m[3];
-      closeCard();
-      next();
+      skipNow();
     }, 1000);
+    skipBtn = btn;
+  }
+  /* the card stays up over YouTube's error screen until the next video is on (watch() takes it down) */
+  var skipBtn = null;
+  function skipNow() {
+    clearInterval(timer);
+    if (skipBtn) skipBtn.textContent = MESSAGES[language()][3] + '…';
+    next();
+    setTimeout(function () { if (card && isBlocked(current())) closeCard(); }, 6000);   // stuck: show the page again
   }
   function watch() {
     var id = current();
@@ -193,7 +200,7 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
       hush();
       if (cardFor === id) return;
       cardFor = id;
-      if (Date.now() - skippedAt < 20000) { closeCard(); next(); return; }   // AI again right after a skip: on at once
+      if (Date.now() - skippedAt < 20000) { next(); return; }   // AI again right after a skip: on at once (the card, if up, stays)
       showCard(id);
     } else {
       if (card) closeCard();
