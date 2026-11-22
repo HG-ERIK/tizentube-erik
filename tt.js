@@ -39,10 +39,12 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
   var MESSAGES = {
     en: ['Blocked by AI Content Filter',
          'To support real musicians and creators, music and videos made mainly with AI (for example with Suno) are no longer played. "%s" is on the list of AI channels.',
-         'Skip in %d', 'Skip', 'This channel is on the list of AI channels.'],
+         'Skip in %d', 'Skip', 'This channel is on the list of AI channels.',
+         'YouTube labels this video as made with AI.'],
     hu: ['Az AI-szűrő letiltotta',
          'Az igazi zenészek és alkotók támogatása érdekében nem játszunk le olyan zenét és videót, amely főként mesterséges intelligenciával (például Sunóval) készült. A(z) „%s” csatorna szerepel az AI-csatornák listáján.',
-         'Átugrás: %d', 'Átugrás', 'Ez a csatorna szerepel az AI-csatornák listáján.']
+         'Átugrás: %d', 'Átugrás', 'Ez a csatorna szerepel az AI-csatornák listáján.',
+         'A YouTube ezt a videót AI-val készültként jelöli.']
   };
   function language() {
     var hl = '';
@@ -77,16 +79,17 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
   function isTile(o) { return o && (o.lockupViewModel || o.tileRenderer || o.videoRenderer || o.compactVideoRenderer || o.gridVideoRenderer); }
 
   // removes AI tiles from every list of tiles in a response; checkIds only when the response mentions an AI id
-  function clean(o, checkIds, depth) {
+  function hasAiBadge(item) { return /"label":"AI"/.test(JSON.stringify(item)); }
+  function clean(o, checkIds, depth, badges) {
     if (!o || typeof o !== 'object' || depth > 40) return;
     if (Array.isArray(o)) {
       for (var n = o.length - 1; n >= 0; n--) {
-        if (isTile(o[n]) && (isAiName(channelName(o[n])) || (checkIds && hasAiId(o[n])))) o.splice(n, 1);
-        else clean(o[n], checkIds, depth + 1);
+        if (isTile(o[n]) && (isAiName(channelName(o[n])) || (checkIds && hasAiId(o[n])) || (badges && hasAiBadge(o[n])))) o.splice(n, 1);
+        else clean(o[n], checkIds, depth + 1, badges);
       }
       return;
     }
-    for (var key in o) if (Object.prototype.hasOwnProperty.call(o, key)) clean(o[key], checkIds, depth + 1);
+    for (var key in o) if (Object.prototype.hasOwnProperty.call(o, key)) clean(o[key], checkIds, depth + 1, badges);
   }
   function mentionsAiId(text) {
     var m = String(text).match(ID_RE);
@@ -118,6 +121,24 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
                (set.nextVideoRenderer && set.nextVideoRenderer.maybeHistoryEndpointRenderer.endpoint);
       if (cur && ep && ep.watchEndpoint) upNext[cur] = ep;
     } catch (e) {}
+  }
+  /* YouTube's "AI" disclosure on the video being opened ("ⓘ AI" in the player's corner) */
+  var LABELLED = '\u0000labelled';
+  function readDisclosure(r) {
+    var cur = r.currentVideoEndpoint.watchEndpoint && r.currentVideoEndpoint.watchEndpoint.videoId;
+    var d = r.playerOverlays && r.playerOverlays.playerOverlayRenderer && r.playerOverlays.playerOverlayRenderer.playerDisclosure;
+    var label = d && d.paidContentOverlayRenderer && d.paidContentOverlayRenderer.text;
+    if (cur && label && (label.simpleText === 'AI' || (label.runs && label.runs[0] && label.runs[0].text === 'AI'))) blocked[cur] = LABELLED;
+  }
+  /* the player's own "now playing" (artist): catches a listed artist whose video the page started from data fetched
+     ahead (a mix, a playlist); only once the metadata has changed since the video came on */
+  var mdStale = null, mdFor = null;
+  function readNowPlaying(id) {
+    var md = navigator.mediaSession && navigator.mediaSession.metadata;
+    var key = md ? md.title + '\u0001' + md.artist : '';
+    if (id !== mdFor) { mdFor = id; mdStale = key; return; }
+    if (!md || key === mdStale || isBlocked(id)) return;
+    if (isAiName(md.artist)) blocked[id] = md.artist;
   }
   function current() { var v = /[?&]v=([\w-]{11})/.exec(location.hash); return v && v[1]; }
   function isBlocked(id) { return !!id && Object.prototype.hasOwnProperty.call(blocked, id); }   // (the name may be empty)
@@ -172,7 +193,8 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
     var box = el('div', 'width:56%;max-width:1100px;background:#212121;border-radius:24px;padding:48px 56px;color:#fff;' +
                         'box-shadow:0 20px 60px rgba(0,0,0,0.6)');
     box.appendChild(el('div', 'font-size:40px;font-weight:700;margin-bottom:24px', m[0]));
-    var text = blocked[id] ? m[1].replace('%s', blocked[id]) : m[1].replace(/\s*[^.]*%s[^.]*\.$/, ' ' + m[4]);   // no name known: the sentence without it
+    var lead = m[1].replace(/\s*[^.]*%s[^.]*\.$/, '');                 // the reason without the channel sentence
+    var text = blocked[id] === LABELLED ? lead + ' ' + m[5] : blocked[id] ? m[1].replace('%s', blocked[id]) : lead + ' ' + m[4];
     box.appendChild(el('div', 'font-size:28px;line-height:1.45;color:#ddd;margin-bottom:40px', text));
     var btn = el('div', 'display:inline-block;background:#f1f1f1;color:#0f0f0f;font-size:28px;font-weight:600;' +
                         'padding:16px 36px;border-radius:40px', m[2].replace('%d', left));
@@ -196,6 +218,7 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
   }
   function watch() {
     var id = current();
+    if (id && enabled()) readNowPlaying(id);
     if (isBlocked(id)) {
       hush();
       if (cardFor === id) return;
@@ -215,9 +238,9 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
     try {
       if (r && typeof r === 'object') {
         if (r.videoDetails && enabled()) blockPlayer(r);
-        if (r.currentVideoEndpoint && r.contents) readUpNext(r);
+        if (r.currentVideoEndpoint && r.contents) { readUpNext(r); if (enabled()) readDisclosure(r); }
         if ((r.contents || r.continuationContents || r.onResponseReceivedActions || r.onResponseReceivedCommands) && completeBlock())
-          clean(r, mentionsAiId(text), 0);
+          clean(r, mentionsAiId(text), 0, String(text).indexOf('"label":"AI"') >= 0);
       }
     } catch (e) { console.warn('AI Content Filter:', e); }
     return r;
