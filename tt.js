@@ -167,11 +167,18 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
     if (!/^\d+(:\d{1,2}){1,2}$/.test(s || '')) return -1;
     return s.split(':').reduce(function (a, p) { return a * 60 + (+p); }, 0);
   }
+  /* the artists: the runs before the first " • " (some answers link them to the artist's page, some don't) */
   function artists(t, tr) {
-    (t && t.runs || []).forEach(function (r) {
+    var runs = t && t.runs || [];
+    for (var i = 0; i < runs.length; i++) {
+      var r = runs[i], txt = r.text || '';
+      if (/^\s*•\s*$/.test(txt)) break;
+      if (/^\s*(&|,|and|és)\s*$/i.test(txt) || !txt.trim()) continue;
+      if (i === 0 && /^(song|video|dal|videó|single|ep)$/i.test(txt.trim())) continue;   // a type label some answers start with
       var id = r.navigationEndpoint && r.navigationEndpoint.browseEndpoint && r.navigationEndpoint.browseEndpoint.browseId || '';
-      if (id.indexOf('UC') === 0) { tr.artistIds.push(id); tr.artistNames.push(r.text || ''); }
-    });
+      if (id.indexOf('UC') === 0) tr.artistIds.push(id);
+      tr.artistNames.push(txt.trim());
+    }
   }
   function musicType(e) {
     try { return e.watchEndpoint.watchEndpointMusicSupportedConfigs.watchEndpointMusicConfig.musicVideoType; } catch (x) { return null; }
@@ -213,7 +220,9 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
     if (!song.videoId || song.videoId === video.videoId) return false;
     var st = norm(cleanTitle(song.title, song.artistNames));
     if (!st || st !== norm(cleanTitle(video.title, video.artistNames))) return false;
-    var byId = song.artistIds.some(function (id) { return video.artistIds.indexOf(id) >= 0; }), artist = byId;
+    var byId = song.artistIds.some(function (id) { return video.artistIds.indexOf(id) >= 0; });
+    var byName = song.artistNames.some(function (n) { return video.artistNames.some(function (v) { return norm(v) && norm(v) === norm(n); }); });
+    var same = byId || byName, artist = same;
     if (!artist) {
       var hay = ' ' + words(video.title + ' ' + video.byline) + ' ';
       artist = song.artistNames.some(function (n) { var w = words(n); return w.length >= 3 && hay.indexOf(' ' + w + ' ') >= 0; });
@@ -222,7 +231,7 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
     /* The artist's own music video whose sound is a demo, edit or other version: the album song is what's wanted
        (the song may carry fewer of those words, never others, and may be up to a minute longer). Anything else must
        be the same take: an upload's "live" or "cover" is not the studio song. */
-    var official = byId && video.type === 'MUSIC_VIDEO_TYPE_OMV';
+    var official = same && video.type === 'MUSIC_VIDEO_TYPE_OMV';
     var sv = variants(song.title), vv = variants(video.title);
     if (official ? !subset(sv, vv) : sv !== vv) return false;
     if (video.seconds > 0 && song.seconds > 0) {
