@@ -39,10 +39,10 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
   var MESSAGES = {
     en: ['Blocked by AI Content Filter',
          'To support real musicians and creators, music and videos made mainly with AI (for example with Suno) are no longer played. "%s" is on the list of AI channels.',
-         'Skip in %d', 'Skip'],
+         'Skip in %d', 'Skip', 'This channel is on the list of AI channels.'],
     hu: ['Az AI-szűrő letiltotta',
          'Az igazi zenészek és alkotók támogatása érdekében nem játszunk le olyan zenét és videót, amely főként mesterséges intelligenciával (például Sunóval) készült. A(z) „%s” csatorna szerepel az AI-csatornák listáján.',
-         'Átugrás: %d', 'Átugrás']
+         'Átugrás: %d', 'Átugrás', 'Ez a csatorna szerepel az AI-csatornák listáján.']
   };
   function language() {
     var hl = '';
@@ -103,7 +103,7 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
       var m = MESSAGES[language()];
       r.playabilityStatus = { status: 'ERROR', reason: m[0] };
       r.streamingData = undefined;
-      blocked[vd.videoId] = vd.author || '?';
+      blocked[vd.videoId] = vd.author || '';
     }
   }
 
@@ -136,12 +136,13 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
     closeCard();
     cardFor = id;
     var m = MESSAGES[language()], left = SKIP_AFTER_MS / 1000;
-    card = el('div', 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147483647;background:rgba(0,0,0,0.88);' +
+    card = el('div', 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147483647;background:#0f0f0f;' +
                      'display:flex;align-items:center;justify-content:center;font-family:Roboto,"YouTube Sans",Arial,sans-serif');
     var box = el('div', 'width:56%;max-width:1100px;background:#212121;border-radius:24px;padding:48px 56px;color:#fff;' +
                         'box-shadow:0 20px 60px rgba(0,0,0,0.6)');
     box.appendChild(el('div', 'font-size:40px;font-weight:700;margin-bottom:24px', m[0]));
-    box.appendChild(el('div', 'font-size:28px;line-height:1.45;color:#ddd;margin-bottom:40px', m[1].replace('%s', blocked[id])));
+    var text = blocked[id] ? m[1].replace('%s', blocked[id]) : m[1].replace(/\s*[^.]*%s[^.]*\.$/, ' ' + m[4]);   // no name known: the sentence without it
+    box.appendChild(el('div', 'font-size:28px;line-height:1.45;color:#ddd;margin-bottom:40px', text));
     var btn = el('div', 'display:inline-block;background:#f1f1f1;color:#0f0f0f;font-size:28px;font-weight:600;' +
                         'padding:16px 36px;border-radius:40px', m[2].replace('%d', left));
     box.appendChild(btn);
