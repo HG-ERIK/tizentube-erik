@@ -136,6 +136,7 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
   }
   ['keydown', 'keypress', 'keyup'].forEach(function (t) { window.addEventListener(t, onKey, true); });
   function showCard(id) {
+    try { window.h5vcc.tizentube.ShowAlertDialog('AI debug', 'showCard ' + id + ' name=' + JSON.stringify(blocked[id])); } catch (e) {}
     closeCard();
     cardFor = id;
     var m = MESSAGES[language()], left = SKIP_AFTER_MS / 1000;
@@ -159,7 +160,9 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
       next();
     }, 1000);
   }
+  var lastDbg = '';
   function watch() {
+    try { var dd = location.hash.slice(0, 40) + ' | ' + Object.keys(blocked).join(','); if (dd !== lastDbg && Object.keys(blocked).length) { lastDbg = dd; window.h5vcc.tizentube.ShowAlertDialog('AI debug', 'watch ' + dd + ' cardFor=' + cardFor + ' skippedAt=' + skippedAt); } } catch (e) {}
     var v = /[?&]v=([\w-]{11})/.exec(location.hash), id = v && v[1];
     if (id && Object.prototype.hasOwnProperty.call(blocked, id)) {   // (the name may be empty)
       if (cardFor === id) return;
