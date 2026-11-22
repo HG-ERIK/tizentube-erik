@@ -161,7 +161,7 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
   }
   function watch() {
     var v = /[?&]v=([\w-]{11})/.exec(location.hash), id = v && v[1];
-    if (id && blocked[id]) {
+    if (id && Object.prototype.hasOwnProperty.call(blocked, id)) {   // (the name may be empty)
       if (cardFor === id) return;
       if (Date.now() - skippedAt < 20000) { cardFor = id; closeCard(); next(); return; }   // AI again right after: on at once
       showCard(id);
