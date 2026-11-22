@@ -244,6 +244,7 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
         var panel = findKey(next, 'playlistPanelVideoRenderer');
         video = panel ? queueTrack(panel) : null;
       }
+      dbg('next: ' + (video ? video.videoId + ' ' + video.type + ' ' + video.title + ' | ' + video.artistNames.join(',') + ' ' + video.seconds : 'none') + (counterpart ? ' cp=' + counterpart.videoId : ''));
       if (!video || video.videoId !== id) return id;
       if (video.type !== 'MUSIC_VIDEO_TYPE_OMV' && video.type !== 'MUSIC_VIDEO_TYPE_UGC') return id;   // the song already, or not music
       if (counterpart && counterpart.type === 'MUSIC_VIDEO_TYPE_ATV' && counterpart.videoId) return counterpart.videoId;
@@ -260,6 +261,7 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
       return post('search', { query: query, params: SONGS_ONLY }).then(function (res) {
         var items = [], best = null;
         findKey(res, 'musicResponsiveListItemRenderer', items, true);
+        dbg('search ' + query + ': ' + items.slice(0, 3).map(function (it) { var t = searchTrack(it); return t ? t.videoId + ' ' + t.title + ' ' + t.artistNames.join(',') + ' ' + t.seconds : '?'; }).join(' / '));
         items.slice(0, CHECKED).forEach(function (it) {
           var s = searchTrack(it);
           if (s && matches(video, s) && (!best || gap(video, s) < gap(video, best))) best = s;
@@ -270,7 +272,7 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
   }
   function resolve(id) {
     if (cache[id]) return Promise.resolve(cache[id]);
-    return find(id).then(function (r) { cache[id] = r; return r; }, function (e) { console.warn('Force Music Only:', id, e && e.message); return id; });
+    return find(id).then(function (r) { cache[id] = r; return r; }, function (e) { dbg('error: ' + (e && (e.stack || e.message))); return id; });
   }
 
   /* ---------- the watch page ---------- */
