@@ -109,7 +109,7 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
 
   /* like an ad: a card over the player with the reason and a countdown, then the next video (the player's own
      "next"); OK skips at once */
-  var card = null, cardFor = null, timer = null;
+  var card = null, cardFor = null, timer = null, skippedAt = 0, swallowUntil = 0;
   function el(tag, css, text) {
     var e = document.createElement(tag);
     e.style.cssText = css;
@@ -117,6 +117,7 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
     return e;
   }
   function next() {
+    skippedAt = Date.now();
     for (var k in window._yttv) {
       var o = window._yttv[k];
       if (o && o.instance && o.instance.resolveCommand) { o.instance.resolveCommand({ signalAction: { signal: 'PLAYER_PLAY_NEXT' } }); return; }
@@ -126,12 +127,14 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
     clearInterval(timer);
     if (card && card.parentNode) card.parentNode.removeChild(card);
     card = null;
-    window.removeEventListener('keydown', onKey, true);
   }
+  /* OK on the card skips; the whole press (down, press, up) stays here, so the player's own buttons behind don't get it */
   function onKey(e) {
-    if (!card) return;
-    if (e.keyCode === 13) { e.preventDefault(); e.stopPropagation(); closeCard(); next(); }
+    if (e.keyCode !== 13 || (!card && Date.now() > swallowUntil)) return;
+    e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+    if (card && e.type === 'keydown') { closeCard(); swallowUntil = Date.now() + 600; next(); }
   }
+  ['keydown', 'keypress', 'keyup'].forEach(function (t) { window.addEventListener(t, onKey, true); });
   function showCard(id) {
     closeCard();
     cardFor = id;
@@ -148,7 +151,6 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
     box.appendChild(btn);
     card.appendChild(box);
     document.body.appendChild(card);
-    window.addEventListener('keydown', onKey, true);
     timer = setInterval(function () {
       if (location.hash.indexOf('v=' + id) < 0) { closeCard(); return; }   // gone elsewhere meanwhile
       if (--left > 0) { btn.textContent = m[2].replace('%d', left); return; }
@@ -159,7 +161,11 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
   }
   function watch() {
     var v = /[?&]v=([\w-]{11})/.exec(location.hash), id = v && v[1];
-    if (id && blocked[id]) { if (cardFor !== id) showCard(id); }
+    if (id && blocked[id]) {
+      if (cardFor === id) return;
+      if (Date.now() - skippedAt < 20000) { cardFor = id; closeCard(); next(); return; }   // AI again right after: on at once
+      showCard(id);
+    }
     else { if (card) closeCard(); cardFor = null; }
   }
   setInterval(watch, 300);
