@@ -109,19 +109,48 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
 
   /* like an ad: a card over the player with the reason and a countdown, then the next video (the player's own
      "next"); OK skips at once */
-  var card = null, cardFor = null, timer = null, skippedAt = 0, swallowUntil = 0;
+  var card = null, cardFor = null, timer = null, skippedAt = 0, swallowUntil = 0, upNext = {};
+  function readUpNext(r) {
+    try {
+      var cur = r.currentVideoEndpoint.watchEndpoint.videoId;
+      var set = r.contents.singleColumnWatchNextResults.autoplay.autoplay.sets[0];
+      var ep = (set.autoplayVideoRenderer && set.autoplayVideoRenderer.autonavEndpointRenderer.endpoint) ||
+               (set.nextVideoRenderer && set.nextVideoRenderer.maybeHistoryEndpointRenderer.endpoint);
+      if (cur && ep && ep.watchEndpoint) upNext[cur] = ep;
+    } catch (e) {}
+  }
+  function current() { var v = /[?&]v=([\w-]{11})/.exec(location.hash); return v && v[1]; }
+  function isBlocked(id) { return !!id && Object.prototype.hasOwnProperty.call(blocked, id); }   // (the name may be empty)
+  /* the page may start an AI video from data it fetched ahead, past the block: silence it while the card is up */
+  function hush() {
+    var v = document.querySelector('video');
+    if (v) { try { v.muted = true; v.pause(); } catch (e) {} }
+  }
+  function unhush() {
+    var v = document.querySelector('video');
+    if (v) { try { v.muted = false; } catch (e) {} }
+  }
   function el(tag, css, text) {
     var e = document.createElement(tag);
     e.style.cssText = css;
     if (text) e.textContent = text;
     return e;
   }
-  function next() {
-    skippedAt = Date.now();
+  function command(c) {
     for (var k in window._yttv) {
       var o = window._yttv[k];
-      if (o && o.instance && o.instance.resolveCommand) { o.instance.resolveCommand({ signalAction: { signal: 'PLAYER_PLAY_NEXT' } }); return; }
+      if (o && o.instance && o.instance.resolveCommand) { o.instance.resolveCommand(c); return true; }
     }
+    return false;
+  }
+  /* the player's own "next"; if the page stays on the AI video, the video YouTube planned after it */
+  function next() {
+    var from = current();
+    skippedAt = Date.now();
+    command({ signalAction: { signal: 'PLAYER_PLAY_NEXT' } });
+    setTimeout(function () {
+      if (current() === from && upNext[from]) command(upNext[from]);
+    }, 1500);
   }
   function closeCard() {
     clearInterval(timer);
@@ -136,9 +165,7 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
   }
   ['keydown', 'keypress', 'keyup'].forEach(function (t) { window.addEventListener(t, onKey, true); });
   function showCard(id) {
-    try { window.h5vcc.tizentube.ShowAlertDialog('AI debug', 'showCard ' + id + ' name=' + JSON.stringify(blocked[id])); } catch (e) {}
     closeCard();
-    cardFor = id;
     var m = MESSAGES[language()], left = SKIP_AFTER_MS / 1000;
     card = el('div', 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147483647;background:#0f0f0f;' +
                      'display:flex;align-items:center;justify-content:center;font-family:Roboto,"YouTube Sans",Arial,sans-serif');
@@ -160,16 +187,19 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
       next();
     }, 1000);
   }
-  var lastDbg = '';
   function watch() {
-    try { var dd = location.hash.slice(0, 40) + ' | ' + Object.keys(blocked).join(','); if (dd !== lastDbg && Object.keys(blocked).length) { lastDbg = dd; window.h5vcc.tizentube.ShowAlertDialog('AI debug', 'watch ' + dd + ' cardFor=' + cardFor + ' skippedAt=' + skippedAt); } } catch (e) {}
-    var v = /[?&]v=([\w-]{11})/.exec(location.hash), id = v && v[1];
-    if (id && Object.prototype.hasOwnProperty.call(blocked, id)) {   // (the name may be empty)
+    var id = current();
+    if (isBlocked(id)) {
+      hush();
       if (cardFor === id) return;
-      if (Date.now() - skippedAt < 20000) { cardFor = id; closeCard(); next(); return; }   // AI again right after: on at once
+      cardFor = id;
+      if (Date.now() - skippedAt < 20000) { closeCard(); next(); return; }   // AI again right after a skip: on at once
       showCard(id);
+    } else {
+      if (card) closeCard();
+      if (cardFor) unhush();
+      cardFor = null;
     }
-    else { if (card) closeCard(); cardFor = null; }
   }
   setInterval(watch, 300);
 
@@ -178,6 +208,7 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
     try {
       if (r && typeof r === 'object') {
         if (r.videoDetails && enabled()) blockPlayer(r);
+        if (r.currentVideoEndpoint && r.contents) readUpNext(r);
         if ((r.contents || r.continuationContents || r.onResponseReceivedActions || r.onResponseReceivedCommands) && completeBlock())
           clean(r, mentionsAiId(text), 0);
       }
