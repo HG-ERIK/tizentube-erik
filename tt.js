@@ -122,7 +122,7 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
      otherwise a "Songs" search for "artist title", taken only when the title is the same (and not another take of it:
      live, remix, cover...), the artist matches and the song isn't longer than the video;
    - anything else, or no answer within 5 s, plays the video itself.
-   The swap: the watch page's v= in the address (#/watch?v=...) becomes the song's, so playlists go on as before. */
+   The swap goes through YouTube's own navigation (a watch command for the song, in the same playlist), so playlists go on as before. */
 (function () {
   'use strict';
   var API = 'https://music.youtube.com/youtubei/v1/';
@@ -285,6 +285,19 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
   }
 
   /* ---------- the watch page ---------- */
+  /* the song through YouTube's own navigation (as a click on it would), in the same playlist at the same place */
+  function play(song) {
+    var p = {};
+    location.hash.replace(/[?&](list|index)=([^&]*)/g, function (_, k, v) { p[k] = decodeURIComponent(v); });
+    var ep = { videoId: song };
+    if (p.list) ep.playlistId = p.list;
+    if (p.index && !isNaN(+p.index)) ep.index = +p.index;
+    for (var k in window._yttv) {
+      var o = window._yttv[k];
+      if (o && o.instance && o.instance.resolveCommand) { o.instance.resolveCommand({ watchEndpoint: ep }); return; }
+    }
+    location.replace(location.href.replace(/([?&]v=)[\w-]{11}/, '$1' + song));
+  }
   function current() { var m = /[?&]v=([\w-]{11})/.exec(location.hash); return m ? m[1] : null; }
   function check() {
     var id = current();
@@ -296,7 +309,7 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
       if (song === id || current() !== id) return;
       songs[song] = id;
       last = song;
-      location.replace(location.href.replace(/([?&]v=)[\w-]{11}/, '$1' + song));
+      play(song);
     });
   }
   window.addEventListener('hashchange', check);
