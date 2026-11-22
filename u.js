@@ -128,7 +128,7 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
   var API = 'https://music.youtube.com/youtubei/v1/';
   var CLIENT = { clientName: 'WEB_REMIX', clientVersion: '1.20251110.03.00', hl: 'en' };
   var SONGS_ONLY = 'EgWKAQIIAWoKEAkQBRAKEAMQBA%3D%3D';
-  var TIMEOUT_MS = 5000, CHECKED = 5, LONGER_SLACK_S = 15, SHORTEST = 0.5;
+  var TIMEOUT_MS = 5000, CHECKED = 5, LONGER_SLACK_S = 15, OFFICIAL_LONGER_S = 60, SHORTEST = 0.5;
   var VARIANT_WORDS = ('live remix cover acoustic instrumental sped slowed reverb nightcore karaoke edit session sessions ' +
     'concert demo mashup unplugged orchestral piano version rework bootleg flip vip extended mix pt part 8d boosted tribute reprise').split(' ');
   var cache = {}, songs = {}, last = null;
@@ -207,17 +207,26 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
     }
     return t.replace(/\b(official|music|video|audio|lyrics?|visuali[sz]er|hd|4k)\b/gi, ' ').trim();
   }
+  function subset(a, b) { return !a || a.split(' ').every(function (w) { return (' ' + b + ' ').indexOf(' ' + w + ' ') >= 0; }); }
   function matches(video, song) {
     if (!song.videoId || song.videoId === video.videoId) return false;
     var st = norm(cleanTitle(song.title, song.artistNames));
-    if (!st || st !== norm(cleanTitle(video.title, video.artistNames)) || variants(video.title) !== variants(song.title)) return false;
-    var artist = song.artistIds.some(function (id) { return video.artistIds.indexOf(id) >= 0; });
+    if (!st || st !== norm(cleanTitle(video.title, video.artistNames))) return false;
+    var byId = song.artistIds.some(function (id) { return video.artistIds.indexOf(id) >= 0; }), artist = byId;
     if (!artist) {
       var hay = ' ' + words(video.title + ' ' + video.byline) + ' ';
       artist = song.artistNames.some(function (n) { var w = words(n); return w.length >= 3 && hay.indexOf(' ' + w + ' ') >= 0; });
     }
     if (!artist) return false;
-    if (video.seconds > 0 && song.seconds > 0) return song.seconds <= video.seconds + LONGER_SLACK_S && song.seconds >= video.seconds * SHORTEST;
+    /* The artist's own music video whose sound is a demo, edit or other version: the album song is what's wanted
+       (the song may carry fewer of those words, never others, and may be up to a minute longer). Anything else must
+       be the same take: an upload's "live" or "cover" is not the studio song. */
+    var official = byId && video.type === 'MUSIC_VIDEO_TYPE_OMV';
+    var sv = variants(song.title), vv = variants(video.title);
+    if (official ? !subset(sv, vv) : sv !== vv) return false;
+    if (video.seconds > 0 && song.seconds > 0) {
+      return song.seconds <= video.seconds + (official ? OFFICIAL_LONGER_S : LONGER_SLACK_S) && song.seconds >= video.seconds * SHORTEST;
+    }
     return true;
   }
   function gap(video, song) { return video.seconds > 0 && song.seconds > 0 ? Math.abs(video.seconds - song.seconds) : 1e9; }
