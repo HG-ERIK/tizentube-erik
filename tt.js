@@ -223,9 +223,21 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
     if (BACKS[k] || ui.focus === 1) toMenu(); else skipNow();
   }
   ['keydown', 'keypress', 'keyup'].forEach(function (t) { window.addEventListener(t, onKey, true); });
+  /* out of the player, as the remote's Back would: YouTube's "back" signal, else a Back key press */
   function toMenu() {
+    var from = current();
     closeCard();                                  // cardFor stays: no new card for this video
-    command({ browseEndpoint: { browseId: 'default' } });
+    clearTimeout(skipGuard);
+    command({ signalAction: { signal: 'HISTORY_BACK' } });
+    setTimeout(function () {
+      if (current() !== from) return;
+      var t = document.activeElement || document.body;
+      ['keydown', 'keyup'].forEach(function (type) {
+        var ev = new KeyboardEvent(type, { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true });
+        try { Object.defineProperty(ev, 'keyCode', { get: function () { return 27; } }); Object.defineProperty(ev, 'which', { get: function () { return 27; } }); } catch (e) {}
+        t.dispatchEvent(ev);
+      });
+    }, 700);
   }
   function showCard(id, ms) {
     closeCard();
@@ -253,13 +265,13 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
     skipBtn = skip;
   }
   /* the card stays up over YouTube's error screen until the next video is on (watch() takes it down) */
-  var skipBtn = null;
+  var skipBtn = null, skipGuard = null;
   function skipNow() {
     var from = current();
     clearInterval(timer);
     if (skipBtn) skipBtn.textContent = MESSAGES[language()][3] + '…';
     next();
-    setTimeout(function () {                    // still on the same video after 6 s: show the page again
+    skipGuard = setTimeout(function () {        // still on the same video after 6 s: show the page again
       if (card && cardFor === from && current() === from) closeCard();
     }, 6000);
   }
