@@ -211,10 +211,13 @@ var e,t,i="function"==typeof Symbol?Symbol:{},n=i.iterator||"@@iterator",a=i.toS
   /* the card stays up over YouTube's error screen until the next video is on (watch() takes it down) */
   var skipBtn = null;
   function skipNow() {
+    var from = current();
     clearInterval(timer);
     if (skipBtn) skipBtn.textContent = MESSAGES[language()][3] + '…';
     next();
-    setTimeout(function () { if (card && isBlocked(current())) closeCard(); }, 6000);   // stuck: show the page again
+    setTimeout(function () {                    // still on the same video after 6 s: show the page again
+      if (card && cardFor === from && current() === from) closeCard();
+    }, 6000);
   }
   function watch() {
     var id = current();
